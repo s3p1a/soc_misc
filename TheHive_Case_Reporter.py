@@ -29,12 +29,14 @@ from email.utils import COMMASPACE, formatdate
 
 # https://unix.stackexchange.com/questions/454957/cron-job-to-run-under-conda-virtual-environment
 
-THE_HIVE_URL = 'http://<example>:9000'
-THE_HIVE_API_KEY = '<example>'
+THE_HIVE_URL = 'http://x.x.x.x:9000'
+THE_HIVE_API_KEY = 'key'
 API = TheHiveApi(THE_HIVE_URL, THE_HIVE_API_KEY)
-SMTP_SERVER='<example.example.com>'
-SMTP_DEFAULT_SEND_FROM='<example@example.com>'
-SMTP_DEFAULT_SEND_TO=['<example@example.com>',] # needs to be a list, even if single address
+SMTP_SERVER='server.example.com'
+SMTP_DEFAULT_SEND_FROM='example@example.com'
+SMTP_DEFAULT_SEND_TO=['example@example.com',] # needs to be a list, even if single address
+HOST_LOOKUP_ENABLED = True
+PATH_TO_HOST_CSV = r'C:\Users\user\Desktop\example.csv'
 
 # pre-populate a dictionary of user names, as only the user ID is present in case
 # json. '_TheHiveApi__find_rows' is a way to access the __find_rows private method
@@ -134,6 +136,22 @@ CASE_FIELDS_TO_PARSE = [
 		'postProcessing':lambda x:x.encode().decode('unicode_escape'),
 		'functionOnPostProcessingException':None,
 		'valueOnPostProcessingException':None,
+	},
+	{
+		'jsonField':'businessSegment',
+		'displayName':'Business Segment',
+		'isCustom':True,
+		'postProcessing':None,
+		'functionOnPostProcessingException':None,
+		'valueOnPostProcessingException':None,
+	},
+		{
+		'jsonField':'businessUnit',
+		'displayName':'Business Unit',
+		'isCustom':True,
+		'postProcessing':None,
+		'functionOnPostProcessingException':None,
+		'valueOnPostProcessingException':None,
 	}
 ]
 
@@ -152,6 +170,44 @@ def search(title, query, range, sort):
 		print('ko: {}/{}'.format(response.status_code, response.text))
 		sys.exit(0)
 	return jsonResponse
+
+def hostListLookup(headers, caseList, pathToHostCSV=PATH_TO_HOST_CSV):
+	# this method is used to append a 'Asset List Matches' column to the data pulled from
+	# thehive's API, and is called by the getCasesByTimeWindow function
+	
+	# parse a CSV into a dict of 'hostname':'asset list' pairs
+	with open(pathToHostCSV, mode='r') as csv_file:
+		# read first line of csv file, split by comma, store as list
+		firstline = csv_file.readline().strip().replace('"','').split(',')
+		# reset file reader position to 0
+		csv_file.seek(0)
+		# test whether the expected column header is present
+		if not (firstline[0] == 'Hostname' and firstline[1] == 'Asset List'):
+			print('Error parsing critical assets list')
+			print("Please ensure CSV has column headers ['Hostname', 'Asset List', ... ]")
+			raise SystemExit
+		csv_reader = csv.DictReader(csv_file)
+		# this will convert all system names to hostname only (no FQDNs)
+		hostListDict = {row['Hostname'].split('.')[0]:row['Asset List'] for row in csv_reader}
+	systemsStringIndex = headers.index('Systems')
+	for case in caseList:
+		# if multiple systems in a case, expand them to an array
+		thisSystemString = case[systemsStringIndex]
+		thisSystemString =  thisSystemString.replace('and',',')
+		thisSystemString = thisSystemString.replace(' ','')
+		thisSystemString = thisSystemString.replace(',,',',')
+		thisSystemsList = thisSystemString.split(',')
+		# convert all system strings to hostname only
+		thisSystemsList = list(map(lambda x: x.split('.')[0], thisSystemsList))
+		# define host list matches as a set to prevent duplicates
+		thisHostListMatches = set()
+		for system in thisSystemsList:
+			# check if this host is in the hostListDict
+				if system in hostListDict.keys():
+					thisHostListMatches.add(hostListDict[system])
+		case.append(', '.join(thisHostListMatches))
+	headers.append('Asset List Matches')
+	return(headers,caseList)
 
 def customParseJson(thisJson, fields=CASE_FIELDS_TO_PARSE):
 	headers = []
@@ -210,6 +266,8 @@ def customParseJson(thisJson, fields=CASE_FIELDS_TO_PARSE):
 	# this sort will only work when sorting by opened time, and it is in column 5
 	# print(caseList)
 	caseList.sort(key = lambda x:datetime.datetime.strptime(x[5],'%m/%d/%Y'),reverse=True)
+	if HOST_LOOKUP_ENABLED:
+		headers, caseList = hostListLookup(headers, caseList)
 	return {'headers':headers,'caseList':caseList}
 
 def getStartOfWeeklyReportingPeriod(date):
@@ -365,6 +423,7 @@ parser.add_argument('-pw','--previousweek',action='store_true',help='Export case
 parser.add_argument('-cm','--currentmonth',action='store_true',help='Export cases for the current month')
 parser.add_argument('-pm','--previousmonth',action='store_true',help='Export cases for the previous month')
 parser.add_argument('-a','--all',action='store_true',help='Export all cases')
+parser.add_argument('-n','--nolookup',action='store_true',help='Do not lookup cases against a systems list')
 parser.add_argument('-e','--email',action='store_true',help='Email exported cases')
 parser.add_argument('-r','--remove',action='store_true',help='Remove exported CSV files (for use when emailing reports)')
 args = parser.parse_args()
@@ -376,6 +435,9 @@ if not len(sys.argv) > 1:
 	print('No arguments passed. Please select an option.')
 	parser.print_help()
 	raise SystemExit
+	
+if args.nolookup:
+	HOST_LOOKUP_ENABLED = False
 
 if args.email:
 	emailFileList = []
