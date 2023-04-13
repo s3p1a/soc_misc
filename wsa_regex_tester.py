@@ -5,9 +5,9 @@ import re
 import pathlib
 from collections import defaultdict
 
-fullInputPath = r'C:\Users\3355505\Downloads\06_07_2021-LogRhythm_WebLogsExport(logMessage).csv'
+fullInputPath = r'C:\Users\<redact>\Downloads\WebLogsExport(logMessage).csv'
 
-sampleInputLog = r'06 05 2021 23:30:48 10.35.21.68 <SAU1:INFO> Jun 05 23:30:48 NAPHX-S390-01.teletech.com W3CLogs_logrhythm: Info: 1622957447.316 90297 10.48.28.132 - 51072 40.97.137.146 443 tunnel://outlook.office365.com:443/ 4621 6219 6180 - - CONNECT 200 - - TCP_MISS - - - - <IW_pem,9.2,1,"-",-,-,-,-,"-",-,-,-,"-",-,-,"-","-",-,-,IW_pem,-,"-","Organizational Email","-","Office 365/OneDrive","Office Suites","Encrypted","-",0.55,0,-,"-","-",-,"-",-,-,"-","-",-,-,"-",->'
+sampleInputLog = r'06 05 2021 23:30:48 10.35.21.68 <SAU1:INFO> Jun 05 23:30:48 hostname.redact.com W3CLogs_logrhythm: Info: 1622957447.316 90297 10.48.28.132 - 51072 40.97.137.146 443 tunnel://outlook.office365.com:443/ 4621 6219 6180 - - CONNECT 200 - - TCP_MISS - - - - <IW_pem,9.2,1,"-",-,-,-,-,"-",-,-,-,"-",-,-,"-","-",-,-,IW_pem,-,"-","Organizational Email","-","Office 365/OneDrive","Office Suites","Encrypted","-",0.55,0,-,"-","-",-,"-",-,-,"-","-",-,-,"-",->'
 sampleInputScanResult = sampleInputLog.split('<')[2].strip('>').split(',')
 
 valuesDict = defaultdict(lambda: set())
